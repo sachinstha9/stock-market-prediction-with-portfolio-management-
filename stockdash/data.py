@@ -4,7 +4,7 @@ import pandas as pd
 import yfinance as yf
 
 
-def download_history(tickers, period="10y", interval="1d") -> dict[str, pd.DataFrame]:
+def download_history(tickers, period="10y", interval="1d"):
     out = {}
     for ticker in dict.fromkeys(t.upper().strip() for t in tickers if t.strip()):
         frame = yf.download(ticker, period=period, interval=interval, auto_adjust=True,
