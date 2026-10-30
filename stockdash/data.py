@@ -66,3 +66,28 @@ def add_features(prices: pd.DataFrame) -> pd.DataFrame:
     df["close_open_return"] = close / df["Open"] - 1
     
     return df.replace([np.inf, -np.inf], np.nan)
+
+
+def make_supervised(prices_by_ticker, horizon=5, mode="UP/DOWN", sideways_band=0.01):
+    """Labels use future close only for targets, never as model features."""
+    if horizon not in (1, 5, 10, 20):
+        raise ValueError("horizon must be one of 1, 5, 10, 20")
+    frames = []
+    for ticker, prices in prices_by_ticker.items():
+        df = add_features(prices)
+        future_return = df["Close"].shift(-horizon) / df["Close"] - 1
+        df["target_return"] = future_return
+        if mode == "UP/DOWN":
+            df["target"] = (future_return > 0).astype("int8")
+        elif mode == "UP/DOWN/SIDEWAYS":
+            df["target"] = np.select([future_return > sideways_band, future_return < -sideways_band], [1, -1], default=0)
+        else:
+            raise ValueError("Unsupported classification mode")
+        df["ticker"] = ticker
+        # The final horizon rows have no known target and must not be trained.
+        df.loc[future_return.isna(), "target"] = np.nan
+        frames.append(df)
+    combined = pd.concat(frames).sort_index()
+    combined = combined.dropna(subset=FEATURES + ["target", "target_return"])
+    combined["target"] = combined["target"].astype(int)
+    return combined
