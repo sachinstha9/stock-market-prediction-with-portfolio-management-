@@ -12,16 +12,40 @@ from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, c
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from .config import FEATURES, MODEL_PATH, ARTIFACT_DI
+from .data import add_features
+
 
 def model_candidates(random_state=42):
     return {
-        "Logistic Regression": Pipeline([("imputer", SimpleImputer(strategy="median")), ("scale", StandardScaler()),
-            ("model", LogisticRegression(max_iter=1500, class_weight="balanced", random_state=random_state))]),
-        "Random Forest": Pipeline([("imputer", SimpleImputer(strategy="median")),
-            ("model", RandomForestClassifier(n_estimators=300, min_samples_leaf=5, max_features="sqrt",
-                class_weight="balanced_subsample", n_jobs=-1, random_state=random_state))]),
-        "Gradient Boosting": Pipeline([("imputer", SimpleImputer(strategy="median")),
-            ("model", HistGradientBoostingClassifier(max_iter=180, learning_rate=0.07, l2_regularization=1.0, random_state=random_state))]),
+        "Logistic Regression": Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scale", StandardScaler()),
+            ("model", LogisticRegression(
+                max_iter=1500,
+                class_weight="balanced",
+                random_state=random_state,
+            )),
+        ]),
+        "Random Forest": Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("model", RandomForestClassifier(
+                n_estimators=300,
+                min_samples_leaf=5,
+                max_features="sqrt",
+                class_weight="balanced_subsample",
+                n_jobs=-1,
+                random_state=random_state,
+            )),
+        ]),
+        "Gradient Boosting": Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("model", HistGradientBoostingClassifier(
+                max_iter=180,
+                learning_rate=0.07,
+                l2_regularization=1.0,
+                random_state=random_state,
+            )),
+        ]),
     }
 
 def walk_forward_splits(df, horizon, n_splits=3):
@@ -143,7 +167,6 @@ def load_model(path=MODEL_PATH):
     return joblib.load(path)
 
 def predict_latest(metadata, prices):
-    from .data import add_features
 
     frame = add_features(prices).dropna(
         subset=metadata["features"]
