@@ -142,3 +142,41 @@ def load_model(path=MODEL_PATH):
 
     return joblib.load(path)
 
+def predict_latest(metadata, prices):
+    from .data import add_features
+
+    frame = add_features(prices).dropna(
+        subset=metadata["features"]
+    )
+
+    if frame.empty:
+        raise ValueError(
+            "Not enough history to calculate prediction features"
+        )
+
+    row = frame.iloc[[-1]]
+    model = metadata["model"]
+
+    predicted = int(model.predict(row[metadata["features"]])[0])
+
+    probs = (
+        model.predict_proba(row[metadata["features"]])[0]
+        if hasattr(model, "predict_proba")
+        else None
+    )
+
+    classes = list(model.classes_) if hasattr(model, "classes_") else []
+
+    return {
+        "date": frame.index[-1],
+        "close": float(row["Close"].iloc[0]),
+        "predicted_class": predicted,
+        "probabilities": (
+            {
+                str(int(c)): float(p)
+                for c, p in zip(classes, probs)
+            }
+            if probs is not None
+            else {}
+        ),
+    }
