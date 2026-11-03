@@ -5,34 +5,55 @@ import yfinance as yf
 
 
 def download_history(tickers, period="10y", interval="1d"):
+    """Download stock prices and keep valid available history."""
     out = {}
-    for ticker in dict.fromkeys(t.upper().strip() for t in tickers if t.strip()):
-        frame = yf.download(ticker, period=period, interval=interval, auto_adjust=True,
-                            progress=False, threads=False)
-        
-        if frame is None or frame.empty:
-            continue
 
-        if isinstance(frame.columns, pd.MultiIndex):
-            frame.columns = frame.columns.get_level_values(0)
+    for ticker in dict.fromkeys(
+        t.strip().upper() for t in tickers if t and t.strip()
+    ):
+        try:
+            frame = yf.download(
+                ticker,
+                period=period,
+                interval=interval,
+                auto_adjust=True,
+                progress=False,
+                threads=False,
+            )
 
-        required = {"Open", "High", "Low", "Close", "Volume"}
+            if frame is None or frame.empty:
+                continue
 
-        if not required.issubset(frame.columns):
-            continue
+            # Handle different yfinance column formats.
+            if isinstance(frame.columns, pd.MultiIndex):
+                frame.columns = frame.columns.get_level_values(0)
 
-        frame = frame[list(required)].copy()
-        frame = frame.sort_index()
-        frame = frame[~frame.index.duplicated(keep="last")]
-        frame = frame.apply(pd.to_numeric, errors="coerce")
-        frame = frame.dropna(subset=["Open", "High", "Low", "Close"])
+            required = ["Open", "High", "Low", "Close", "Volume"]
 
-        if len(frame) > 60:
-            out[ticker] = frame
+            if not all(col in frame.columns for col in required):
+                continue
+
+            frame = frame[required].copy()
+            frame = frame.sort_index()
+            frame = frame[~frame.index.duplicated(keep="last")]
+            frame = frame.apply(pd.to_numeric, errors="coerce")
+            frame = frame.dropna(
+                subset=["Open", "High", "Low", "Close"]
+            )
+
+            # Keep usable history even if it contains fewer than 61 rows.
+            if not frame.empty:
+                out[ticker] = frame
+
+        except Exception as e:
+            print(f"Failed to download {ticker}: {e}")
 
     if not out:
-        raise RuntimeError("No usable price history returned by yfinance.")
-    
+        raise RuntimeError(
+            "Yahoo Finance returned no usable price history. "
+            "Check internet access, ticker symbols, and Yahoo Finance availability."
+        )
+
     return out
 
 def add_features(prices: pd.DataFrame) -> pd.DataFrame:

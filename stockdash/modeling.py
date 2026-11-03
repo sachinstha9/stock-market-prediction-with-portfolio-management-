@@ -1,6 +1,8 @@
+
 from __future__ import annotations
-import json, time
+
 from pathlib import Path
+
 import joblib
 import numpy as np
 import pandas as pd
@@ -8,10 +10,15 @@ from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, classification_report
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    balanced_accuracy_score,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from .config import FEATURES, MODEL_PATH, ARTIFACT_DI
+
+from .config import FEATURES, MODEL_PATH
 from .data import add_features
 
 
