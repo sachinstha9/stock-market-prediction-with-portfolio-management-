@@ -135,3 +135,10 @@ def train_and_save(
         "model_name": winner_name,
         "metadata": metadata,
     }
+
+def load_model(path=MODEL_PATH):
+    if not Path(path).exists():
+        return None
+
+    return joblib.load(path)
+
