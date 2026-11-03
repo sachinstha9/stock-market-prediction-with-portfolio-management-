@@ -50,46 +50,98 @@ def model_candidates(random_state=42):
 
 def walk_forward_splits(df, horizon, n_splits=3):
     dates = pd.Index(sorted(pd.to_datetime(df.index).unique()))
+
     if len(dates) < (n_splits + 2) * max(10, horizon):
-        raise ValueError(f"Not enough unique dates ({len(dates)}) for {n_splits} walk-forward folds")
+        raise ValueError(
+            f"Not enough unique dates ({len(dates)}) "
+            f"for {n_splits} walk-forward folds"
+        )
+
     blocks = np.array_split(dates, n_splits + 1)
+
     for i in range(1, len(blocks)):
         test_dates = blocks[i]
+
         if not len(test_dates):
             continue
+
         test_start = pd.Timestamp(test_dates[0])
-        # Purge labels whose future outcome overlaps the test window.
         prior_dates = dates[dates < test_start]
-        train_dates = prior_dates[:-horizon] if len(prior_dates) > horizon else prior_dates[:0]
-        train_idx = np.flatnonzero(pd.to_datetime(df.index).isin(train_dates))
-        test_idx = np.flatnonzero(pd.to_datetime(df.index).isin(test_dates))
+
+        train_dates = (
+            prior_dates[:-horizon]
+            if len(prior_dates) > horizon
+            else prior_dates[:0]
+        )
+
+        index_dates = pd.to_datetime(df.index)
+        train_idx = np.flatnonzero(index_dates.isin(train_dates))
+        test_idx = np.flatnonzero(index_dates.isin(test_dates))
+
         if len(train_idx) and len(test_idx):
             yield train_idx, test_idx
 
 def evaluate_models(df, horizon, n_splits=3):
     X, y = df[FEATURES], df["target"]
     records, predictions = [], []
+
     for name, estimator in model_candidates().items():
         fold_scores = []
-        for fold, (tr, te) in enumerate(walk_forward_splits(df, horizon, n_splits), 1):
+
+        for fold, (tr, te) in enumerate(
+            walk_forward_splits(df, horizon, n_splits), 1
+        ):
             if y.iloc[tr].nunique() < 2:
                 continue
+
             fitted = clone(estimator).fit(X.iloc[tr], y.iloc[tr])
             pred = fitted.predict(X.iloc[te])
-            fold_scores.append({"fold": fold, "accuracy": accuracy_score(y.iloc[te], pred),
-                "f1_macro": f1_score(y.iloc[te], pred, average="macro", zero_division=0),
-                "balanced_accuracy": balanced_accuracy_score(y.iloc[te], pred)})
+
+            fold_scores.append({
+                "fold": fold,
+                "accuracy": accuracy_score(y.iloc[te], pred),
+                "f1_macro": f1_score(
+                    y.iloc[te], pred, average="macro", zero_division=0
+                ),
+                "balanced_accuracy": balanced_accuracy_score(
+                    y.iloc[te], pred
+                ),
+            })
+
             for idx, label in zip(te, pred):
-                predictions.append({"model": name, "index": df.index[idx], "ticker": df.iloc[idx]["ticker"],
-                                    "actual": int(y.iloc[idx]), "predicted": int(label), "target_return": float(df.iloc[idx]["target_return"])})
+                predictions.append({
+                    "model": name,
+                    "index": df.index[idx],
+                    "ticker": df.iloc[idx]["ticker"],
+                    "actual": int(y.iloc[idx]),
+                    "predicted": int(label),
+                    "target_return": float(df.iloc[idx]["target_return"]),
+                })
+
         if fold_scores:
-            records.append({"model": name, "accuracy": float(np.mean([s["accuracy"] for s in fold_scores])),
-                "f1_macro": float(np.mean([s["f1_macro"] for s in fold_scores])),
-                "balanced_accuracy": float(np.mean([s["balanced_accuracy"] for s in fold_scores])),
-                "folds": len(fold_scores), "fold_details": fold_scores})
+            records.append({
+                "model": name,
+                "accuracy": np.mean([s["accuracy"] for s in fold_scores]),
+                "f1_macro": np.mean([s["f1_macro"] for s in fold_scores]),
+                "balanced_accuracy": np.mean(
+                    [s["balanced_accuracy"] for s in fold_scores]
+                ),
+                "folds": len(fold_scores),
+                "fold_details": fold_scores,
+            })
+
     if not records:
         raise RuntimeError("No valid walk-forward folds were produced.")
-    scores = pd.DataFrame(records).sort_values(["balanced_accuracy", "f1_macro"], ascending=False).reset_index(drop=True)
+
+    scores = (
+        pd.DataFrame(records)
+        .sort_values(
+            ["balanced_accuracy", "f1_macro"],
+            ascending=False,
+        )
+        .reset_index(drop=True)
+    )
+
     return scores, pd.DataFrame(predictions)
 
 def train_and_save(
