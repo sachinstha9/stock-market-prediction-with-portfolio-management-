@@ -13,3 +13,17 @@ def performance_metrics(equity: pd.Series, daily_returns: pd.Series):
     sharpe = float(np.sqrt(252) * r.mean() / r.std(ddof=1)) if len(r) > 1 and r.std(ddof=1) > 0 else 0.0
     return {"total_return": float(equity.iloc[-1] / equity.iloc[0] - 1),
             "max_drawdown": float(drawdown.min()), "sharpe": sharpe}
+
+def backtest_signals(prices, signals, initial_cash=10000,
+                     transaction_cost_bps=10, slippage_bps=5, position_fraction=0.95):
+ 
+    close = prices["Close"].astype(float).sort_index()
+ 
+    signal = signals.reindex(close.index).fillna(0).astype(int).clip(0, 1)
+    position = signal.shift(2).fillna(0) * position_fraction
+ 
+    turnover = position.diff().abs().fillna(position.abs())
+    cost = turnover * (transaction_cost_bps + slippage_bps) / 10000
+ 
+    asset_returns = close.pct_change().fillna(0)
+    strategy_returns = position * asset_returns - cost
