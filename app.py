@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
+from stockdash.config import DEFAULT_TICKERS, FEATURES, MODEL_PATH, DB_PATH
+from stockdash.portfolio import PortfolioDB
 
 st.set_page_config(page_title='MarketLab | Stock Intelligence', page_icon='📈', layout='wide')
 st.markdown('''<style>
@@ -83,4 +84,8 @@ hr {
 }
 </style>''',unsafe_allow_html=True)
 st.markdown('<div class="hero"><h1> MarketLab</h1><p>Multi-stock classification </p></div>',unsafe_allow_html=True)
+
+db=PortfolioDB(DB_PATH)
+@st.cache_data(ttl=900,show_spinner=False)
+
 
