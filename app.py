@@ -102,6 +102,9 @@ def safe_prices(ticker,period='2y'):
 metadata=load_model()
 page=st.sidebar.radio('Workspace',['Market overview','Stock analysis','Model lab','Portfolio','Backtesting','Prediction history'])
 st.sidebar.caption(f"Saved model: {'available' if metadata else 'not trained yet'}")
+
+if page=='Market overview':
+    st.subheader('Market overview')
  
 
 
