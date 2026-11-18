@@ -120,6 +120,19 @@ if page=='Market overview':
         st.plotly_chart(fig,width='stretch')
         st.caption('Quotes may be delayed, missing, adjusted, or unavailable for some symbols.')
     except Exception as e: st.error(f'Could not load market data: {e}')
+
+    st.divider(); st.subheader('Watchlist')
+    a,b=st.columns([3,1]); new=a.text_input('Add ticker',placeholder='e.g. NVDA').upper().strip()
+    if b.button('Add to watchlist') and new: db.add_watch(new); st.rerun()
+    watch=db.watchlist()
+    if watch:
+        try:
+            wp=get_prices(tuple(watch),'6mo')
+            st.dataframe(pd.DataFrame([{'Ticker':t,'Last close':float(v.Close.iloc[-1]),'1D %':float(v.Close.pct_change().iloc[-1]*100)} for t,v in wp.items()]),use_container_width=True,hide_index=True)
+        except Exception as e: st.warning(str(e))
+        remove=st.selectbox('Remove symbol',watch)
+        if st.button('Remove'): db.remove_watch(remove); st.rerun()
+    else: st.info('Add symbols above to create a persistent watchlist.')
  
 
 
