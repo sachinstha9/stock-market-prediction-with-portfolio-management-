@@ -159,6 +159,19 @@ elif page=='Stock analysis':
             else: st.info('No saved model exists yet. Open Model lab and train on real historical data.')
             with st.expander('Latest technical features'): st.dataframe(features[FEATURES].tail(5),use_container_width=True)
         except Exception as e: st.error(f'Analysis failed: {e}')
+
+elif page=='Model lab':
+    st.subheader('Model training & validation')
+    st.write('Train and compare classical machine-learning models and a feed-forward deep-learning neural network. Models are evaluated with chronological walk-forward folds; training downloads real data and may take several minutes.')
+    horizon=st.selectbox('Target horizon',[1,5,10,20],index=1)
+    mode=st.radio('Target classes',['UP/DOWN','UP/DOWN/SIDEWAYS'],horizontal=True)
+    period=st.selectbox('History period',['5y','10y'],index=1)
+    model_options=list(model_candidates().keys())
+    selection=st.selectbox(
+        'Model selection',
+        ['Automatic (compare all models)'] + model_options,
+        help='Automatic compares every model using chronological walk-forward validation. Choose one model to train and validate only that option.'
+    )
  
 
 
