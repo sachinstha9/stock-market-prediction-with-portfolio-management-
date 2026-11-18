@@ -172,6 +172,38 @@ elif page=='Model lab':
         ['Automatic (compare all models)'] + model_options,
         help='Automatic compares every model using chronological walk-forward validation. Choose one model to train and validate only that option.'
     )
+
+    threshold=st.slider('Minimum walk-forward balanced accuracy required to replace saved model',0.35,0.70,0.48,0.01)
+    if st.button('Download, train & validate',type='primary'):
+        with st.spinner('Downloading market history and evaluating models...'):
+            tickers=[t for group in DEFAULT_TICKERS.values() for t in group]
+            raw=download_history(tickers,period=period)
+            dataset=make_supervised(raw,horizon,mode)
+            
+            st.write(f"Usable symbols: {len(raw)} · supervised rows: {len(dataset):,} · dates: {dataset.index.nunique():,}")
+
+            chosen_models = None if selection.startswith('Automatic') else [selection]
+
+            result=train_and_save(
+                dataset, horizon, mode, threshold, MODEL_PATH,
+                selected_models=chosen_models
+            )
+
+            st.dataframe(result['scores'].drop(columns=['fold_details']),use_container_width=True,hide_index=True)
+
+            st.info(result['reason'])
+
+            if result['saved']: 
+                st.success(f"Saved model: {result['model_name']}")
+                st.rerun()
+            
+    if metadata:
+        st.markdown('Current saved artifact')
+        st.json({k:v for k,v in metadata.items() if k not in ('model','features')})
+        st.caption(f'Artifact path: {MODEL_PATH}')
+    else: 
+        st.warning('No model artifact detected. predictions remain disabled until a real training run succeeds.')
+
  
 
 
