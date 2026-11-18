@@ -105,6 +105,21 @@ st.sidebar.caption(f"Saved model: {'available' if metadata else 'not trained yet
 
 if page=='Market overview':
     st.subheader('Market overview')
+
+    tickers=[t for group in DEFAULT_TICKERS.values() for t in group]
+    try:
+        prices=get_prices(tuple(tickers),'6mo')
+        cols=st.columns(4)
+        for i,t in enumerate(list(prices)[:4]):
+            p=prices[t]; change=(p.Close.iloc[-1]/p.Close.iloc[-2]-1)*100
+            cols[i].metric(t,money(p.Close.iloc[-1]),f'{change:+.2f}%')
+        selected=st.selectbox('Explore symbol',sorted(prices))
+        p=prices[selected]
+        fig=go.Figure(go.Candlestick(x=p.index,open=p.Open,high=p.High,low=p.Low,close=p.Close,name=selected))
+        fig.update_layout(height=460,xaxis_rangeslider_visible=False,template='plotly_dark',margin=dict(l=10,r=10,t=25,b=10))
+        st.plotly_chart(fig,width='stretch')
+        st.caption('Quotes may be delayed, missing, adjusted, or unavailable for some symbols.')
+    except Exception as e: st.error(f'Could not load market data: {e}')
  
 
 
