@@ -92,4 +92,10 @@ db=PortfolioDB(DB_PATH)
 def get_prices(tickers,period='2y'):
     return download_history(list(tickers),period=period)
 
+def money(v):
+    return f"${v:,.2f}"
+ 
+def safe_prices(ticker,period='2y'):
+    return get_prices((ticker,),period)[ticker]
+
 
