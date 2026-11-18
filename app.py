@@ -9,6 +9,7 @@ import streamlit as st
 from stockdash.config import DEFAULT_TICKERS, FEATURES, MODEL_PATH, DB_PATH
 from stockdash.portfolio import PortfolioDB
 from stockdash.data import download_history, add_features, make_supervised
+from stockdash.modeling import load_model, train_and_save, predict_latest, model_candidates
 
 st.set_page_config(page_title='MarketLab | Stock Intelligence', page_icon='📈', layout='wide')
 st.markdown('''<style>
@@ -97,5 +98,10 @@ def money(v):
  
 def safe_prices(ticker,period='2y'):
     return get_prices((ticker,),period)[ticker]
+
+metadata=load_model()
+page=st.sidebar.radio('Workspace',['Market overview','Stock analysis','Model lab','Portfolio','Backtesting','Prediction history'])
+st.sidebar.caption(f"Saved model: {'available' if metadata else 'not trained yet'}")
+ 
 
 
