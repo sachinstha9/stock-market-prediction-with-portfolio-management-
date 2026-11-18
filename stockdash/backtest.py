@@ -27,3 +27,26 @@ def backtest_signals(prices, signals, initial_cash=10000,
  
     asset_returns = close.pct_change().fillna(0)
     strategy_returns = position * asset_returns - cost
+
+    equity = initial_cash * (1 + strategy_returns).cumprod()
+    buy_hold = initial_cash * (1 + asset_returns).cumprod()
+ 
+    result = pd.DataFrame({
+        "close": close,
+        "signal": signal,
+        "position": position,
+        "asset_return": asset_returns,
+        "strategy_return": strategy_returns,
+        "equity": equity,
+        "buy_hold": buy_hold
+    })
+ 
+    metrics = {
+        "strategy": performance_metrics(equity, strategy_returns),
+        "buy_hold": performance_metrics(buy_hold, asset_returns),
+        "transactions": int((turnover > 0).sum()),
+        "transaction_cost_bps": transaction_cost_bps,
+        "slippage_bps": slippage_bps
+    }
+ 
+    return result, metrics
