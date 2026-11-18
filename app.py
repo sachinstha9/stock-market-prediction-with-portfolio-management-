@@ -177,9 +177,9 @@ elif page=='Model lab':
     if st.button('Download, train & validate',type='primary'):
         with st.spinner('Downloading market history and evaluating models...'):
             tickers=[t for group in DEFAULT_TICKERS.values() for t in group]
-            raw=download_history(tickers,period=period)
+            raw=download_history(tickers,period=period
             dataset=make_supervised(raw,horizon,mode)
-            
+
             st.write(f"Usable symbols: {len(raw)} · supervised rows: {len(dataset):,} · dates: {dataset.index.nunique():,}")
 
             chosen_models = None if selection.startswith('Automatic') else [selection]
@@ -204,6 +204,188 @@ elif page=='Model lab':
     else: 
         st.warning('No model artifact detected. predictions remain disabled until a real training run succeeds.')
 
- 
+elif page == "Portfolio":
+    st.subheader('Virtual portfolio')
 
+    cash = db.cash()
+    tx = db.transactions()
+    holdings = db.holdings()
 
+    c1, c2, c3 = st.columns(3)
+    c1.metric('Virtual cash', money(cash))
+    c2.metric('Open positions', len(holdings))
+    c3.metric('Transactions', len(tx))
+
+    with st.expander('Record buy / sell transaction', expanded=True):
+        with st.form('trade_form'):
+            ticker = st.text_input('Ticker', 'AAPL').upper().strip()
+            side = st.radio('Side', ['BUY', 'SELL'], horizontal=True)
+            qty = st.number_input('Shares', min_value=0.0001, value=1.0,
+                                step=1.0, format='%.4f')
+            price = st.number_input('Execution price', min_value=0.01,
+                                    value=100.0, step=1.0)
+            fees = st.number_input('Fees', min_value=0.0, value=0.0, step=0.5)
+
+            submit = st.form_submit_button('Record transaction')
+
+        if submit:
+            try:
+                db.trade(ticker, side, qty, price, fees)
+                st.success('Transaction recorded.')
+                st.rerun()
+            except Exception as e:
+                st.error(str(e))
+
+    if not holdings.empty:
+        try:
+            live = get_prices(tuple(holdings.ticker), '5d')
+
+            holdings['last_price'] = holdings.ticker.map(
+                {t: float(p.Close.iloc[-1]) for t, p in live.items()}
+            )
+
+            holdings['market_value'] = holdings.quantity * holdings.last_price
+            holdings['unrealized_pnl'] = holdings.market_value - holdings.cost_basis
+            holdings['allocation_%'] = (
+                holdings.market_value / holdings.market_value.sum() * 100
+            )
+
+            st.markdown('#### Holdings')
+            st.dataframe(holdings, use_container_width=True, hide_index=True)
+
+            st.metric('Unrealised P&L', money(holdings.unrealized_pnl.sum()))
+
+            fig = go.Figure(
+                go.Pie(
+                    labels=holdings.ticker,
+                    values=holdings.market_value,
+                    hole=0.55
+                )
+            )
+            fig.update_layout(template='plotly_dark')
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        except Exception as e:
+            st.warning(f'Live holdings valuation unavailable: {e}')
+
+    st.markdown('#### Transaction ledger')
+    st.dataframe(tx, use_container_width=True, hide_index=True)
+
+    st.caption(
+        'Virtual account only. Realised P&L is an estimate based on recorded '
+        'trades and does not include tax or corporate-action handling.'
+    )
+
+elif page=='Backtesting':
+    st.subheader('Out-of-sample backtesting')
+    st.warning('Simplified long/flat strategy; results depend on data quality and assumptions. No live trading.')
+
+    ticker = st.text_input('Ticker', 'SPY').upper().strip()
+
+    if st.button('Run backtest', type='primary'):
+
+        if not metadata:
+            st.error('Train a model first.')
+
+        else:
+            try:
+                prices = safe_prices(ticker, '5y')
+
+                if metadata['horizon'] != 1:
+                    st.error('This daily execution backtest requires a 1-day model. Train horizon=1 for this page.')
+
+                elif not metadata.get('oos_predictions'):
+                    st.error('This artifact has no saved out-of-sample predictions. Retrain to create an OOS validation ledger.')
+
+                else:
+                    oos = pd.DataFrame(metadata['oos_predictions'])
+                    oos = oos[oos.ticker == ticker].copy()
+
+                    if oos.empty:
+                        st.error(f'No saved out-of-sample predictions for {ticker}. Train with this ticker included.')
+
+                    else:
+                        oos['date'] = pd.to_datetime(oos.date).dt.tz_localize(None)
+                        oos = oos[oos.date.isin(prices.index)]
+
+                        if oos.empty:
+                            st.error('Saved out-of-sample dates do not overlap downloaded price history.')
+
+                        else:
+                            prices = prices.loc[oos.date.min():oos.date.max()]
+                            signals = pd.Series(0, index=prices.index, dtype=int)
+                            pred_by_date = oos.drop_duplicates('date').set_index('date')
+                            common_dates = signals.index.intersection(pred_by_date.index)
+
+                            signals.loc[common_dates] = (
+                                pred_by_date.loc[common_dates, 'predicted']
+                                .astype(int).eq(1).astype(int).values
+                            )
+
+                            result, metrics = backtest_signals(prices, signals)
+
+                            c1, c2, c3 = st.columns(3)
+
+                            c1.metric(
+                                'OOS strategy return',
+                                f"{metrics['strategy']['total_return'] * 100:.2f}%"
+                            )
+
+                            c2.metric(
+                                'Max drawdown',
+                                f"{metrics['strategy']['max_drawdown'] * 100:.2f}%"
+                            )
+
+                            c3.metric(
+                                'Sharpe',
+                                f"{metrics['strategy']['sharpe']:.2f}"
+                            )
+
+                            st.write(
+                                'Buy-and-hold comparison over the same OOS date range',
+                                metrics['buy_hold']
+                            )
+
+                            st.caption(
+                                'Uses saved walk-forward out-of-fold classifications. '
+                                'Signal at close, execution at next close, exposure begins '
+                                'after execution; costs/slippage are approximated. '
+                                'Probability threshold control is not applied to this '
+                                'OOS class-only ledger.'
+                            )
+
+                            fig = go.Figure()
+
+                            fig.add_trace(go.Scatter(
+                                x=result.index,
+                                y=result.equity,
+                                name='OOS strategy'
+                            ))
+
+                            fig.add_trace(go.Scatter(
+                                x=result.index,
+                                y=result.buy_hold,
+                                name='Buy & hold'
+                            ))
+
+                            fig.update_layout(
+                                template='plotly_dark',
+                                height=420
+                            )
+
+                            st.plotly_chart(fig, use_container_width=True)
+                            st.dataframe(result.tail(20), use_container_width=True)
+
+            except Exception as e:
+                st.error(f'Backtest failed: {e}')
+elif page=='Prediction history':
+    st.subheader('Prediction history')
+
+    hist=db.predictions()
+
+    if hist.empty:
+          st.info('No predictions recorded yet. Run a stock analysis with a saved model.')
+    else:
+        st.dataframe(hist,use_container_width=True,hide_index=True)
+        st.caption('Actual outcomes are not auto-filled: evaluation requires waiting until the selected forecast horizon has elapsed and matching the corresponding market data.')
