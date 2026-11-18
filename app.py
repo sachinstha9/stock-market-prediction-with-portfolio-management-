@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from stockdash.config import DEFAULT_TICKERS, FEATURES, MODEL_PATH, DB_PATH
 from stockdash.portfolio import PortfolioDB
+from stockdash.data import download_history, add_features, make_supervised
 
 st.set_page_config(page_title='MarketLab | Stock Intelligence', page_icon='📈', layout='wide')
 st.markdown('''<style>
@@ -87,5 +88,8 @@ st.markdown('<div class="hero"><h1> MarketLab</h1><p>Multi-stock classification 
 
 db=PortfolioDB(DB_PATH)
 @st.cache_data(ttl=900,show_spinner=False)
+
+def get_prices(tickers,period='2y'):
+    return download_history(list(tickers),period=period)
 
 
