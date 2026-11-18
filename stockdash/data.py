@@ -2,6 +2,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from .config import FEATURES
 
 
 def download_history(tickers, period="10y", interval="1d"):
@@ -90,7 +91,6 @@ def add_features(prices: pd.DataFrame) -> pd.DataFrame:
 
 
 def make_supervised(prices_by_ticker, horizon=5, mode="UP/DOWN", sideways_band=0.01):
-    """Labels use future close only for targets, never as model features."""
     if horizon not in (1, 5, 10, 20):
         raise ValueError("horizon must be one of 1, 5, 10, 20")
     frames = []
@@ -105,7 +105,6 @@ def make_supervised(prices_by_ticker, horizon=5, mode="UP/DOWN", sideways_band=0
         else:
             raise ValueError("Unsupported classification mode")
         df["ticker"] = ticker
-        # The final horizon rows have no known target and must not be trained.
         df.loc[future_return.isna(), "target"] = np.nan
         frames.append(df)
     combined = pd.concat(frames).sort_index()

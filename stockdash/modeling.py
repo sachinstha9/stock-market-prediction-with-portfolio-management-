@@ -10,6 +10,7 @@ from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
@@ -53,6 +54,21 @@ def model_candidates(random_state=42):
                 random_state=random_state,
             )),
         ]),
+        "Deep Learning (MLP Neural Network)": Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scale", StandardScaler()),
+            ("model", MLPClassifier(
+                hidden_layer_sizes=(128, 64, 32),
+                activation="relu",
+                solver="adam",
+                alpha=0.001,
+                batch_size=256,
+                learning_rate_init=0.001,
+                max_iter=350,
+                random_state=random_state,
+            )),
+        ]),
+
     }
 
 def walk_forward_splits(df, horizon, n_splits=3):
@@ -88,11 +104,18 @@ def walk_forward_splits(df, horizon, n_splits=3):
         if len(train_idx) and len(test_idx):
             yield train_idx, test_idx
 
-def evaluate_models(df, horizon, n_splits=3):
+def evaluate_models(df, horizon, n_splits=3, selected_models=None):
     X, y = df[FEATURES], df["target"]
     records, predictions = [], []
 
-    for name, estimator in model_candidates().items():
+    candidates = model_candidates()
+    if selected_models:
+        unknown = sorted(set(selected_models) - set(candidates))
+        if unknown:
+            raise ValueError(f"Unknown model selection: {', '.join(unknown)}")
+        candidates = {name: candidates[name] for name in selected_models}
+
+    for name, estimator in candidates.items():
         fold_scores = []
 
         for fold, (tr, te) in enumerate(
@@ -157,8 +180,11 @@ def train_and_save(
     mode="UP/DOWN",
     minimum_balanced_accuracy=0.48,
     save_path=MODEL_PATH,
+    selected_models=None,
 ):
-    scores, oos_predictions = evaluate_models(df, horizon)
+    scores, oos_predictions = evaluate_models(
+        df, horizon, selected_models=selected_models
+    )
 
     winner_name = str(scores.iloc[0]["model"])
     winner_score = float(scores.iloc[0]["balanced_accuracy"])

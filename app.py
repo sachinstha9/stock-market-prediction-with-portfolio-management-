@@ -10,6 +10,8 @@ from stockdash.config import DEFAULT_TICKERS, FEATURES, MODEL_PATH, DB_PATH
 from stockdash.portfolio import PortfolioDB
 from stockdash.data import download_history, add_features, make_supervised
 from stockdash.modeling import load_model, train_and_save, predict_latest, model_candidates
+from stockdash.backtest import backtest_signals
+
 
 st.set_page_config(page_title='MarketLab | Stock Intelligence', page_icon='📈', layout='wide')
 st.markdown('''<style>
@@ -177,8 +179,8 @@ elif page=='Model lab':
     if st.button('Download, train & validate',type='primary'):
         with st.spinner('Downloading market history and evaluating models...'):
             tickers=[t for group in DEFAULT_TICKERS.values() for t in group]
-            raw=download_history(tickers,period=period
-            dataset=make_supervised(raw,horizon,mode)
+            raw=download_history(tickers,period=period)
+            dataset=make_supervised(raw, horizon, mode)
 
             st.write(f"Usable symbols: {len(raw)} · supervised rows: {len(dataset):,} · dates: {dataset.index.nunique():,}")
 

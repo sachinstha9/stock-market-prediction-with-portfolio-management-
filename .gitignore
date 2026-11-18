@@ -1,2 +1,4 @@
 env
 stockdash/__pycache__
+artifacts/*.joblib
+data/*.sqlite3
