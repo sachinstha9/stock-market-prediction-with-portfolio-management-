@@ -133,6 +133,32 @@ if page=='Market overview':
         remove=st.selectbox('Remove symbol',watch)
         if st.button('Remove'): db.remove_watch(remove); st.rerun()
     else: st.info('Add symbols above to create a persistent watchlist.')
+
+elif page=='Stock analysis':
+    st.subheader('Stock analysis & prediction')
+    ticker=st.text_input('Ticker symbol','AAPL').upper().strip()
+    horizon=st.select_slider('Prediction horizon (trading days)',options=[1,5,10,20],value=5)
+    if st.button('Analyze',type='primary'):
+        try:
+            prices=safe_prices(ticker,'10y')
+            features=add_features(prices)
+            fig=go.Figure(); fig.add_trace(go.Scatter(x=prices.index,y=prices.Close,name='Adjusted close'))
+            for n in [20,50,200]: fig.add_trace(go.Scatter(x=prices.index,y=prices.Close.rolling(n).mean(),name=f'SMA {n}'))
+            fig.update_layout(template='plotly_dark',height=420)
+            st.plotly_chart(fig,use_container_width=True)
+            c1,c2,c3=st.columns(3); c1.metric('Last close',money(prices.Close.iloc[-1])); c2.metric('1D return',f"{prices.Close.pct_change().iloc[-1]*100:+.2f}%"); c3.metric('Annualized 20D vol',f"{features.volatility_20.iloc[-1]*100:.1f}%")
+            if metadata:
+                if metadata['horizon']!=horizon: st.warning(f"Saved model predicts {metadata['horizon']} trading days ahead, not {horizon}. Train a matching horizon in Model lab.")
+                else:
+                    pred=predict_latest(metadata,prices)
+                    label={1:'UP',0:'DOWN',-1:'DOWN',}.get(pred['predicted_class'],'SIDEWAYS')
+                    st.markdown(f'### Model estimate: **{label}**')
+                    st.caption(f"As of {pd.Timestamp(pred['date']).date()} close {money(pred['close'])}; class probabilities are model estimates.")
+                    st.bar_chart(pd.DataFrame({'Class':[('UP' if k=='1' else 'DOWN' if k in ('0','-1') else 'SIDEWAYS') for k in pred['probabilities']], 'Probability':list(pred['probabilities'].values())}).set_index('Class'))
+                    db.record_prediction(ticker,horizon,pred['predicted_class'],pred['probabilities'])
+            else: st.info('No saved model exists yet. Open Model lab and train on real historical data.')
+            with st.expander('Latest technical features'): st.dataframe(features[FEATURES].tail(5),use_container_width=True)
+        except Exception as e: st.error(f'Analysis failed: {e}')
  
 
 
