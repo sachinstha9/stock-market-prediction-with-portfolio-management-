@@ -120,7 +120,6 @@ if page=='Market overview':
         fig=go.Figure(go.Candlestick(x=p.index,open=p.Open,high=p.High,low=p.Low,close=p.Close,name=selected))
         fig.update_layout(height=460,xaxis_rangeslider_visible=False,template='plotly_dark',margin=dict(l=10,r=10,t=25,b=10))
         st.plotly_chart(fig,width='stretch')
-        st.caption('Quotes may be delayed, missing, adjusted, or unavailable for some symbols.')
     except Exception as e: st.error(f'Could not load market data: {e}')
 
     st.divider(); st.subheader('Watchlist')
@@ -128,13 +127,14 @@ if page=='Market overview':
     if b.button('Add to watchlist') and new: db.add_watch(new); st.rerun()
     watch=db.watchlist()
     if watch:
-        try:
-            wp=get_prices(tuple(watch),'6mo')
-            st.dataframe(pd.DataFrame([{'Ticker':t,'Last close':float(v.Close.iloc[-1]),'1D %':float(v.Close.pct_change().iloc[-1]*100)} for t,v in wp.items()]),use_container_width=True,hide_index=True)
-        except Exception as e: st.warning(str(e))
+        wp=get_prices(tuple(watch),'6mo')
+        st.dataframe(pd.DataFrame([{'Ticker':t,'Last close':float(v.Close.iloc[-1]),'1D %':float(v.Close.pct_change().iloc[-1]*100)} for t,v in wp.items()]),use_container_width=True,hide_index=True)
         remove=st.selectbox('Remove symbol',watch)
-        if st.button('Remove'): db.remove_watch(remove); st.rerun()
-    else: st.info('Add symbols above to create a persistent watchlist.')
+        if st.button('Remove'):
+            db.remove_watch(remove)
+            st.rerun()
+    else: 
+        st.info('Add symbols above to create a watchlist.')
 
 elif page=='Stock analysis':
     st.subheader('Stock analysis & prediction')
@@ -164,7 +164,6 @@ elif page=='Stock analysis':
 
 elif page=='Model lab':
     st.subheader('Model training & validation')
-    st.write('Train and compare classical machine-learning models and a feed-forward deep-learning neural network. Models are evaluated with chronological walk-forward folds; training downloads real data and may take several minutes.')
     horizon=st.selectbox('Target horizon',[1,5,10,20],index=1)
     mode=st.radio('Target classes',['UP/DOWN','UP/DOWN/SIDEWAYS'],horizontal=True)
     period=st.selectbox('History period',['5y','10y'],index=1)

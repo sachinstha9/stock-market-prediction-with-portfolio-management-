@@ -18,10 +18,81 @@ from sklearn.metrics import (
 )
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
 
 from .config import FEATURES, MODEL_PATH
 from .data import add_features
 
+class LSTMClassifier(BaseEstimator, ClassifierMixin):
+    def __init__(
+        self,
+        epochs=30,
+        batch_size=64,
+        random_state=42,
+    ):
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.random_state = random_state
+
+    def fit(self, X, y):
+        import tensorflow as tf
+
+        tf.keras.utils.set_random_seed(self.random_state)
+
+        self.classes_ = np.unique(y)
+
+        self.scaler = StandardScaler()
+        X = self.scaler.fit_transform(X)
+
+        X = X.reshape(X.shape[0], X.shape[1], 1)
+
+        self.model = Sequential([
+            LSTM(64, return_sequences=True,
+                 input_shape=(X.shape[1], 1)),
+            Dropout(0.2),
+            LSTM(32),
+            Dropout(0.2),
+            Dense(16, activation="relu"),
+            Dense(len(self.classes_), activation="softmax"),
+        ])
+
+        self.model.compile(
+            optimizer="adam",
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+
+        self.model.fit(
+            X,
+            pd.Series(y).map(
+                {c: i for i, c in enumerate(self.classes_)}
+            ).values,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            verbose=0,
+            callbacks=[
+                EarlyStopping(
+                    monitor="loss",
+                    patience=5,
+                    restore_best_weights=True,
+                )
+            ],
+        )
+
+        return self
+
+    def predict_proba(self, X):
+        X = self.scaler.transform(X)
+        X = X.reshape(X.shape[0], X.shape[1], 1)
+        return self.model.predict(X, verbose=0)
+
+    def predict(self, X):
+        probabilities = self.predict_proba(X)
+        return self.classes_[np.argmax(probabilities, axis=1)]
 
 def model_candidates(random_state=42):
     return {
@@ -68,7 +139,11 @@ def model_candidates(random_state=42):
                 random_state=random_state,
             )),
         ]),
-
+        "LSTM (Deep Learning)": LSTMClassifier(
+                epochs=30,
+                batch_size=64,
+                random_state=random_state,
+            ),
     }
 
 def walk_forward_splits(df, horizon, n_splits=3):
